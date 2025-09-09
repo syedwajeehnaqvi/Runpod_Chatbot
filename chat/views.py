@@ -7,6 +7,8 @@ import json
 import os
 import time
 import re
+from dotenv import load_dotenv
+load_dotenv() 
 
 global JOB_ID
 
@@ -32,7 +34,7 @@ def runpod_proxy(request):
     prompt = data.get('prompt', '')
 
     api_url = 'https://api.runpod.ai/v2/9m4r1uykcytq3g/run'
-    api_key = os.getenv('RUNPOD_API_KEY')
+    api_key = api_key = os.getenv('RUNPOD_API_KEY')
 
     headers = {
         'Content-Type': 'application/json',

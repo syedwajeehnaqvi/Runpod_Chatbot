@@ -129,9 +129,6 @@
 
     // Call RunPod proxy API and connect to WebSocket dynamically
     document.getElementById('runpod-button').onclick = async function () {
-        const userPrompt = window.prompt("Enter a prompt for RunPod:");
-
-        if (!userPrompt) return;
 
         appendBotMessage("⏳ Starting RunPod server...");
 
@@ -139,7 +136,7 @@
             const res = await fetch('/runpod_proxy/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt: userPrompt })
+                body: JSON.stringify({ prompt: "Hi I am testing" })
             });
 
             if (!res.ok) {
