@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Chatbot</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: auto;
+            padding: 1rem;
+        }
+        #chat-box {
+            border: 1px solid #ccc;
+            padding: 1rem;
+            height: 300px;
+            overflow-y: auto;
+            margin-bottom: 1rem;
+            background-color: #f9f9f9;
+        }
+        .message {
+            margin: 0.5rem 0;
+        }
+        .user {
+            text-align: right;
+            color: blue;
+        }
+        .bot {
+            text-align: left;
+            color: green;
+        }
+        input[type="text"] {
+            width: 80%;
+            padding: 0.5rem;
+        }
+        button {
+            width: 18%;
+            padding: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <h2>💬 Chatbot</h2>
+    <div id="chat-box"></div>
+    <input id="user-input" type="text" placeholder="Type your message..." />
+    <button id="send-button">Send</button>
+    <button id="close-button">Close</button>
+    <hr>
+    {% comment %} <button id="start-server">Start WebSocket Server</button> {% endcomment %}
+    <button id="runpod-button">Call RunPod API</button>
+    <p><strong>RunPod Response:</strong> <span id="runpod-response">None</span></p>
+
+   <script>
+    let socket = null;  // WebSocket instance
+
+    const chatBox = document.getElementById('chat-box');
+    const input = document.getElementById('user-input');
+    const sendBtn = document.getElementById('send-button');
+
+    // Function to create WebSocket connection dynamically
+    function connectWebSocket(ip, port) {
+        const wsUrl = `ws://${ip}:${port}`;
+        appendBotMessage(`🔌 Connecting to WebSocket at ${wsUrl}...`);
+
+        // Close existing socket if open
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.close();
+        }
+
+        socket = new WebSocket(wsUrl);
+
+        socket.onopen = function () {
+            appendBotMessage("✅ Connected to WebSocket server.");
+            sendBtn.disabled = false;
+            input.disabled = false;
+        };
+
+        socket.onmessage = function (event) {
+            appendBotMessage(event.data);
+        };
+
+        socket.onclose = function () {
+            appendBotMessage("❌ Connection closed.");
+            sendBtn.disabled = true;
+            input.disabled = true;
+        };
+
+        socket.onerror = function (error) {
+            appendBotMessage(`⚠️ WebSocket error: ${error.message || error}`);
+        };
+    }
+
+    // Send message through WebSocket
+    function sendMessage() {
+        const message = input.value.trim();
+        if (!message) return;
+
+        if (!socket || socket.readyState !== WebSocket.OPEN) {
+            appendBotMessage("⚠️ WebSocket is not connected.");
+            return;
+        }
+
+        socket.send(message);
+        appendUserMessage(message);
+        input.value = '';
+    }
+
+    // UI helper functions
+    function appendUserMessage(msg) {
+        const div = document.createElement('div');
+        div.className = 'message user';
+        div.textContent = '🧑 ' + msg;
+        chatBox.appendChild(div);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function appendBotMessage(msg) {
+        const div = document.createElement('div');
+        div.className = 'message bot';
+        div.textContent = '🤖 ' + msg;
+        chatBox.appendChild(div);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    sendBtn.onclick = sendMessage;
+    input.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") sendMessage();
+    });
+
+    // Call RunPod proxy API and connect to WebSocket dynamically
+    document.getElementById('runpod-button').onclick = async function () {
+        const userPrompt = window.prompt("Enter a prompt for RunPod:");
+
+        if (!userPrompt) return;
+
+        appendBotMessage("⏳ Starting RunPod server...");
+
+        try {
+            const res = await fetch('/runpod_proxy/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt: userPrompt })
+            });
+
+            if (!res.ok) {
+                throw new Error(`Server error: ${res.statusText}`);
+            }
+
+            const data = await res.json();
+            console.log("RunPod Proxy Response:", data);
+
+            if (data.error) {
+                appendBotMessage(`❌ Error: ${data.error}`);
+                return;
+            }
+
+            if (data.public_ip && data.tcp_port) {
+                document.getElementById('runpod-response').textContent = `IP: ${data.public_ip}, Port: ${data.tcp_port}`;
+                appendBotMessage(`🌐 Server started at ${data.public_ip}:${data.tcp_port}`);
+                connectWebSocket(data.public_ip, data.tcp_port);
+            } else {
+                appendBotMessage('⚠️ Server info (IP/Port) not available yet. Please try again later.');
+            }
+        } catch (error) {
+            console.error("RunPod Proxy fetch error:", error);
+            appendBotMessage(`❌ Fetch error: ${error.message}`);
+        }
+    };
+    document.getElementById('close-button').onclick = async function () {
+        const confirmCancel = confirm("Are you sure you want to cancel the RunPod job?");
+        if (!confirmCancel) return;
+
+        try {
+            const res = await fetch('/cancel_runpod/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                appendBotMessage("🛑 RunPod job cancelled.");
+            } else {
+                appendBotMessage(`❌ Failed to cancel: ${data.error}`);
+            }
+        } catch (err) {
+            appendBotMessage(`❌ Cancel request failed: ${err.message}`);
+        }
+    };
+    // Initially disable send button and input until WebSocket connects
+    sendBtn.disabled = true;
+    input.disabled = true;
+</script>
+</body>
+</html>
